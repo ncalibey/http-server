@@ -3,14 +3,27 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 
-	"github.com/ncalibey/learn-go-with-tests/http-server/server"
+	"github.com/ncalibey/learn-go-with-tests/http-server/internal/server"
 )
 
-func main() {
-	server := server.NewPlayerServer(server.NewInMemoryPlayerStore())
+const dbFileName = "game.db.json"
 
-	if err := http.ListenAndServe(":5000", server); err != nil {
+func main() {
+	db, err := os.OpenFile(dbFileName, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		log.Fatalf("problem opening %s %v", dbFileName, err)
+	}
+
+	store, err := server.NewFilesystemPlayerStore(db)
+	if err != nil {
+		log.Fatalf("problem creating file system player store, %v ", err)
+	}
+
+	s := server.NewPlayerServer(store)
+
+	if err := http.ListenAndServe(":5000", s); err != nil {
 		log.Fatalf("could not listen on port 5000 %v", err)
 	}
 }

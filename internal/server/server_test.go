@@ -1,16 +1,14 @@
 package server
 
 import (
-	"encoding/json"
-	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"testing"
 )
-
-const jsonContentType = "application/json"
 
 func TestGETPlayers(t *testing.T) {
 	store := &StubPlayerStore{
@@ -102,48 +100,6 @@ func TestStoreWins(t *testing.T) {
 	}
 }
 
-func TestRecordingWinsAndRetrievingThem(t *testing.T) {
-	cases := []struct {
-		desc   string
-		status int
-	}{
-		{
-			desc:   "get score",
-			status: http.StatusOK,
-		},
-		{
-			desc:   "get league",
-			status: http.StatusOK,
-		},
-	}
-	store := NewInMemoryPlayerStore()
-	server := NewPlayerServer(store)
-	player := "Pepper"
-
-	server.ServeHTTP(httptest.NewRecorder(), newPostWinRequest(player))
-	server.ServeHTTP(httptest.NewRecorder(), newPostWinRequest(player))
-	server.ServeHTTP(httptest.NewRecorder(), newPostWinRequest(player))
-
-	for i, c := range cases {
-		t.Run(c.desc, func(t *testing.T) {
-			response := httptest.NewRecorder()
-			server.ServeHTTP(response, newGetScoreRequest(player))
-			assertStatus(t, response.Code, http.StatusOK)
-
-			if i > 0 {
-				got := getLeagueFromResponse(t, response.Body)
-				want := []Player{
-					{"Pepper", 3},
-				}
-				assertLeague(t, got, want)
-			} else {
-				assertResponseBody(t, response.Body.String(), "3")
-			}
-		})
-	}
-
-}
-
 func TestLeague(t *testing.T) {
 	store := &StubPlayerStore{
 		scores:   nil,
@@ -182,17 +138,7 @@ func TestLeague(t *testing.T) {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
-//// Helper Functions ////////////////////////////////////////////////////////////////////
-
-func newPostWinRequest(player string) *http.Request {
-	req, _ := http.NewRequest(http.MethodPost, "/players/"+player, nil)
-	return req
-}
-
-func newGetScoreRequest(name string) *http.Request {
-	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("/players/%s", name), nil)
-	return req
-}
+//// Assertions //////////////////////////////////////////////////////////////////////////
 
 func assertResponseBody(t *testing.T, got, want string) {
 	t.Helper()
@@ -215,17 +161,6 @@ func assertContentType(t *testing.T, response *httptest.ResponseRecorder, want s
 	}
 }
 
-func getLeagueFromResponse(t *testing.T, body io.Reader) (league []Player) {
-	t.Helper()
-	err := json.NewDecoder(body).Decode(&league)
-
-	if err != nil {
-		t.Fatalf("Unable to parse response from server %q into slice of Player, '%v'", body, err)
-	}
-
-	return
-}
-
 func assertLeague(t *testing.T, got, want []Player) {
 	t.Helper()
 	if !reflect.DeepEqual(got, want) {
@@ -233,7 +168,64 @@ func assertLeague(t *testing.T, got, want []Player) {
 	}
 }
 
+func assertPlayerScore(t *testing.T, got, want int) {
+	t.Helper()
+	if got != want {
+		t.Errorf("got %d want %d", got, want)
+	}
+}
+
+func assertNoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("didnt expect an error but got one: %v", err)
+	}
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//// Helper Functions ////////////////////////////////////////////////////////////////////
+
+func newPostWinRequest(player string) *http.Request {
+	req, _ := http.NewRequest(http.MethodPost, "/players/"+player, nil)
+	return req
+}
+
+func newGetScoreRequest(name string) *http.Request {
+	req, _ := http.NewRequest(http.MethodGet, "/players/"+name, nil)
+	return req
+}
+
+func getLeagueFromResponse(t *testing.T, body io.Reader) []Player {
+	t.Helper()
+	league, err := NewLeague(body)
+
+	if err != nil {
+		t.Fatalf("Unable to parse response from server %q into slice of Player, '%v'", body, err)
+	}
+
+	return league
+}
+
 func newLeagueRequest() *http.Request {
 	req, _ := http.NewRequest(http.MethodGet, "/league", nil)
 	return req
+}
+
+func createTempFile(t *testing.T, initialData string) (*os.File, func()) {
+	t.Helper()
+
+	tmpfile, err := ioutil.TempFile("", "db")
+
+	if err != nil {
+		t.Fatalf("could not create temp file %v", err)
+	}
+
+	tmpfile.Write([]byte(initialData))
+
+	removeFile := func() {
+		tmpfile.Close()
+		os.Remove(tmpfile.Name())
+	}
+
+	return tmpfile, removeFile
 }
