@@ -1,4 +1,4 @@
-package server
+package poker
 
 import "testing"
 
@@ -15,7 +15,7 @@ func TestFileSystemStore(t *testing.T) {
 			},
 		},
 	}
-	database, cleanDatabase := createTempFile(t, `[
+	database, cleanDatabase := CreateTempFile(t, `[
 		{"Name": "Cleo", "Wins": 10},
 		{"Name": "Chris", "Wins": 33}]`)
 	defer cleanDatabase()
@@ -24,14 +24,14 @@ func TestFileSystemStore(t *testing.T) {
 		t.Run(c.desc, func(t *testing.T) {
 			store, err := NewFileSystemPlayerStore(database)
 
-			assertNoError(t, err)
+			AssertNoError(t, err)
 
 			got := store.GetLeague()
-			assertLeague(t, got, c.want)
+			AssertLeague(t, got, c.want)
 
 			// read again
 			got = store.GetLeague()
-			assertLeague(t, got, c.want)
+			AssertLeague(t, got, c.want)
 		})
 	}
 }
@@ -48,24 +48,24 @@ func TestFileSystemGetPlayerStore(t *testing.T) {
 			want2: 34,
 		},
 	}
-	database, cleanDatabase := createTempFile(t, `[
+	database, cleanDatabase := CreateTempFile(t, `[
 		{"Name": "Cleo", "Wins": 10},
 		{"Name": "Chris", "Wins": 33}]`)
 	defer cleanDatabase()
 
 	store, err := NewFileSystemPlayerStore(database)
-	assertNoError(t, err)
+	AssertNoError(t, err)
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
 			got := store.GetPlayerScore("Chris")
-			assertPlayerScore(t, got, c.want1)
+			AssertPlayerScore(t, got, c.want1)
 		})
 
 		t.Run(c.desc, func(t *testing.T) {
 			store.RecordWin("Chris")
 			got := store.GetPlayerScore("Chris")
-			assertPlayerScore(t, got, c.want2)
+			AssertPlayerScore(t, got, c.want2)
 		})
 	}
 }
